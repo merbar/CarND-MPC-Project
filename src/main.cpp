@@ -91,37 +91,67 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          
+          // transfer world space waypoints into vehicle space (vehicle at origin)
+          // using eigen vectors since polyfit/polyeval require them
+          int num_waypoints = ptsx.size();
+          Eigen::VectorXd way_x_vspace = Eigen::VectorXd(num_waypoints);
+          Eigen::VectorXd way_y_vspace = Eigen::VectorXd(num_waypoints);
+          // create rotation matrix
+          Eigen::Matrix2d M_rot;
+          M_rot << cos(-psi), -sin(-psi),
+                   sin(-psi), cos(-psi);
+          for (int i = 0; i < num_waypoints; i++) {     
+            Eigen::Vector2d p_waypoint(ptsx[i] - px, ptsy[i] - py); // translate
+            Eigen::Vector2d p_waypoint_t = M_rot * p_waypoint; // rotate
+            way_x_vspace[i] = p_waypoint_t(0);
+            way_y_vspace[i] = p_waypoint_t(1);
+          }
+          
+          // now also move the vehicle position and orientation to the origin
+          px = 0;
+          py = 0;
+          psi = 0;
+          
+          // fit polynomial to waypoints
+          Eigen::VectorXd waypoints_pfit_coeff = polyfit(way_x_vspace, way_y_vspace, 3);
+          
+          // calculate errors
+          double cte = polyeval(waypoints_pfit_coeff, 0) - py;
+          double epsi = -atan(waypoints_pfit_coeff(1)); // most coefficients end up being zero due to px==0
+          
+          Eigen::VectorXd state_vec(6);
+          state_vec << px, py, psi, v, cte, epsi;
 
           /*
-          * TODO: Calculate steeering angle and throttle using MPC.
-          *
+          * TODO: Calculate steering angle and throttle using MPC.
           * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+          */          
+          vector<double> mpc_out = mpc.Solve(state_vec, waypoints_pfit_coeff);
+            
+          double steer_value = mpc_out[0];
+          double throttle_value = mpc_out[1];
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
-
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Green line
-
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
-
-          //Display the waypoints/reference line
+          // display MPC predicted waypoints (green line)
+          msgJson["mpc_x"] = mpc.x_vals;
+          msgJson["mpc_y"] = mpc.y_vals;
+          
+          //Display the waypoints/reference line (yellow line)
           vector<double> next_x_vals;
           vector<double> next_y_vals;
-
+          // one car length is about 5.2 units
+          for (int i = 0; i < 15; i++) {
+            next_x_vals.push_back(i*5);
+            next_y_vals.push_back(polyeval(waypoints_pfit_coeff, i*5));
+          }
+          
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
+          
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
@@ -130,14 +160,14 @@ int main() {
           std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
-          // the car does actuate the commands instantly.
+          // the car does not actuate the commands instantly.
           //
-          // Feel free to play around with this value but should be to drive
+          // Feel free to play around with this value but should be able to drive
           // around the track with 100ms latency.
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(10));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
