@@ -118,6 +118,10 @@ int main() {
           
           // calculate errors
           double cte = polyeval(waypoints_pfit_coeff, 0) - py;
+          // SHOULD COEFFICIENT ZERO BE USED?!
+          // ############################################################
+          // ############################################################
+          // ############################################################
           double epsi = -atan(waypoints_pfit_coeff(1)); // most coefficients end up being zero due to px==0
           
           Eigen::VectorXd state_vec(6);
