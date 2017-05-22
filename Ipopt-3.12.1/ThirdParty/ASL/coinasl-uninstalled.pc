@@ -1,9 +1,0 @@
-prefix=/usr/local
-libdir=/home/merbar/git/CarND-MPC-Project/Ipopt-3.12.1/ThirdParty/ASL
-
-Name: ASL
-Description: AMPL Solver Library
-URL: https://projects.coin-or.org/BuildTools
-Version: 1.3.2
-Libs: ${libdir}/libcoinasl.la -lm -ldl 
-Cflags: -I/home/merbar/git/CarND-MPC-Project/Ipopt-3.12.1/ThirdParty/ASL -I/home/merbar/git/CarND-MPC-Project/Ipopt-3.12.1/ThirdParty/ASL/solvers
