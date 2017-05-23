@@ -77,7 +77,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    cout << sdata << endl;
+    //cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -95,12 +95,12 @@ int main() {
           // transfer world space waypoints into vehicle space (vehicle at origin)
           // using eigen vectors since polyfit/polyeval require them
           int num_waypoints = ptsx.size();
-          Eigen::VectorXd way_x_vspace = Eigen::VectorXd(num_waypoints);
-          Eigen::VectorXd way_y_vspace = Eigen::VectorXd(num_waypoints);
+          Eigen::VectorXd way_x_vspace(num_waypoints);
+          Eigen::VectorXd way_y_vspace(num_waypoints);
           // create rotation matrix
           Eigen::Matrix2d M_rot;
-          M_rot << cos(-psi), -sin(-psi),
-                   sin(-psi), cos(-psi);
+          M_rot << cos(psi), sin(psi),
+                   -sin(psi), cos(psi);
           for (int i = 0; i < num_waypoints; i++) {     
             Eigen::Vector2d p_waypoint(ptsx[i] - px, ptsy[i] - py); // translate
             Eigen::Vector2d p_waypoint_t = M_rot * p_waypoint; // rotate
@@ -118,27 +118,31 @@ int main() {
           
           // calculate errors
           double cte = polyeval(waypoints_pfit_coeff, 0) - py;
-          // SHOULD COEFFICIENT ZERO BE USED?!
-          // ############################################################
-          // ############################################################
-          // ############################################################
-          double epsi = -atan(waypoints_pfit_coeff(1)); // most coefficients end up being zero due to px==0
+          double epsi = psi - atan(waypoints_pfit_coeff(1) + 2 * waypoints_pfit_coeff(2) * px + 3 * waypoints_pfit_coeff(3) * px * px);
           
           Eigen::VectorXd state_vec(6);
           state_vec << px, py, psi, v, cte, epsi;
+          
+          std::cout << "CTE: " << cte << std::endl;
+          std::cout << "EPSI: " << epsi << std::endl;
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           * Both are in between [-1, 1].
           */          
           vector<double> mpc_out = mpc.Solve(state_vec, waypoints_pfit_coeff);
-            
-          double steer_value = mpc_out[0];
+          
+          //std::cout << "MPC OUT: ";
+          //for (auto i = mpc_out.begin(); i != mpc_out.end(); ++i)
+          //  std::cout << *i << ' ';
+          //std::cout << std::endl;
+          double steer_value = -mpc_out[0]; // steering angle comes out inverted
           double throttle_value = mpc_out[1];
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
+          //msgJson["throttle"] = 0.4;
 
           // display MPC predicted waypoints (green line)
           msgJson["mpc_x"] = mpc.x_vals;
@@ -147,21 +151,25 @@ int main() {
           //Display the waypoints/reference line (yellow line)
           vector<double> next_x_vals;
           vector<double> next_y_vals;
+          /*
           // one car length is about 5.2 units
           for (int i = 0; i < 15; i++) {
             next_x_vals.push_back(i*5);
             next_y_vals.push_back(polyeval(waypoints_pfit_coeff, i*5));
           }
+          */
+          for (int i = 0; i < way_x_vspace.size(); i++) {
+            next_x_vals.push_back(way_x_vspace[i]);
+            next_y_vals.push_back(way_y_vspace[i]);
+          }
           
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Yellow line
-          
+          // the points in the simulator are connected by a Yellow line          
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
-
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          //std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does not actuate the commands instantly.
@@ -171,7 +179,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(10));
+          //this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {

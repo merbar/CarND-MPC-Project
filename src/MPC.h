@@ -21,4 +21,3 @@ class MPC {
 };
 
 #endif /* MPC_H */
-
