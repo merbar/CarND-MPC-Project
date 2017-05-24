@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 10;
-double dt = 0.1;
+size_t N = 20;
+double dt = 0.15;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -72,19 +72,19 @@ class FG_eval {
     A: 0-1
     */
     for (int i = 0; i < N; i++) {
-        fg[0] += 1000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2);
-        fg[0] += 500 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+        fg[0] += 2000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2);
+        fg[0] += 5000 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
         fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
     }
     // penalize the use of actuators
     for (int i = 0; i < N-1; i++) {
-        fg[0] += CppAD::pow(vars[deltaPsi_start + i], 2);
+        fg[0] += 500 * CppAD::pow(vars[deltaPsi_start + i], 2);
         //fg[0] += CppAD::pow(vars[a_start + i], 2);
     }
     // penalize big value gaps in sequential actuations
     for (int i = 0; i < N-2; i++) {
-        fg[0] += 200 * CppAD::pow(vars[deltaPsi_start + i + 1] - vars[deltaPsi_start + i], 2);
-        fg[0] += 50 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+        fg[0] += CppAD::pow(vars[deltaPsi_start + i + 1] - vars[deltaPsi_start + i], 2);
+        fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
     
     // Setup Constraints
@@ -113,8 +113,10 @@ class FG_eval {
       AD<double> cte1 = vars[cte_start + i + 1];
       AD<double> epsi1 = vars[epsi_start + i + 1];
       
-      AD<double> f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
-      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0,2));
+      //AD<double> f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
+      //AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0,2));
+      AD<double> f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2);
+      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0);
       
       // The idea here is to constraint this value to be 0.
       //
@@ -193,9 +195,10 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars_upperbound[i] = numeric_limits<double>::max();
   }
   // max steering input: -25 to 25 degrees in radians
+  const double maxAngle = 25 * M_PI / 180;
   for (int i = deltaPsi_start; i < a_start; i++) {
-    vars_lowerbound[i] = -0.436332; // try -0.2
-    vars_upperbound[i] = 0.436332;
+    vars_lowerbound[i] = -maxAngle;
+    vars_upperbound[i] = maxAngle;
   }
   // max acceleration between -1 and 1
   for (int i = a_start; i < n_vars; i++) {
@@ -263,14 +266,18 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   std::cout << "Cost " << cost << std::endl;
 
   // save predicted x and y values
-  x_vals.clear();
-  y_vals.clear();
-  for (int i=0; i<N-1; i++) {
-    x_vals.push_back(solution.x[x_start+i]);
-    y_vals.push_back(solution.x[y_start+i]);
+  vector<double> result(N*2);
+  result[0] = 0.0;
+  result[1] = 0.0;
+  const int smooth_fac = 1;
+  for (int i = 0; i < smooth_fac; i++) {
+    result[0] += solution.x[deltaPsi_start+i] / smooth_fac;
+    result[1] += solution.x[a_start+i] / smooth_fac;
+  }
+  for (int i=2; i<N+1; i++) {
+      result[i] = solution.x[x_start+i-2];
+      result[N+i] = solution.x[y_start+i-2];
   }
 
-  // TODO: Return the first actuator values. The variables can be accessed with
-  // `solution.x[i]`.
-  return {solution.x[deltaPsi_start], solution.x[a_start]};
+  return result;
 }

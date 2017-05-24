@@ -8,8 +8,6 @@ using namespace std;
 
 class MPC {
  public:
-  vector<double> x_vals;
-  vector<double> y_vals;
   
   MPC();
 

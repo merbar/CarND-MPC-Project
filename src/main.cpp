@@ -97,9 +97,9 @@ int main() {
           double deltaPsi = j[1]["steering_angle"];
           double a = j[1]["throttle"];
           double latency = 0.1;
-          //px += cos(psi) * latency;
-          //py += sin(psi) * latency;
-          //psi += deltaPsi * latency;
+          //px += cos(psi) * v * latency;
+          //py += sin(psi) * v * latency;
+          //psi += -deltaPsi * latency;
           //v += a * latency;
                     
           // transfer world space waypoints into vehicle space (vehicle at origin)
@@ -124,11 +124,12 @@ int main() {
           psi = 0;
           
           // fit polynomial to waypoints
-          Eigen::VectorXd wpts_coeff = polyfit(way_x_vspace, way_y_vspace, 3);
+          Eigen::VectorXd wpts_coeff = polyfit(way_x_vspace, way_y_vspace, 2);
           
           // calculate errors
           double cte = polyeval(wpts_coeff, 0) - py;
-          double epsi = psi - atan(wpts_coeff(1) + 2 * wpts_coeff(2) * px + 3 * wpts_coeff(3) * px * px);
+          //double epsi = psi - atan(wpts_coeff(1) + 2 * wpts_coeff(2) * px + 3 * wpts_coeff(3) * px * px);
+          double epsi = atan(wpts_coeff(1));
           
           Eigen::VectorXd state_vec(6);
           state_vec << px, py, psi, v, cte, epsi;
@@ -136,17 +137,26 @@ int main() {
           // TODO: Calculate steering angle and throttle using MPC.
           // Both are in between [-1, 1].     
           vector<double> mpc_out = mpc.Solve(state_vec, wpts_coeff);
-          
-          double steer_value = -mpc_out[0]; // steering angle comes out inverted
+          int mpc_out_size = mpc_out.size();
+          int N = (mpc_out_size-2) / 2;
+                    
+          double steer_value = -mpc_out[0];
           double throttle_value = mpc_out[1];
+          
+          vector<double> mpc_x_vals;
+          vector<double> mpc_y_vals;
+          for (int i = 2; i < N; i++) {
+              mpc_x_vals.push_back(mpc_out[i]);
+              mpc_y_vals.push_back(mpc_out[N + i]);
+          }
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
           // display MPC predicted waypoints (green line)
-          msgJson["mpc_x"] = mpc.x_vals;
-          msgJson["mpc_y"] = mpc.y_vals;
+          msgJson["mpc_x"] = mpc_x_vals;
+          msgJson["mpc_y"] = mpc_y_vals;
           
           //Display the waypoints/reference line (yellow line)
           vector<double> next_x_vals;
