@@ -4,6 +4,10 @@
 Controlling steering and throttle input via MPC Control to drive a vehicle as fast as safely possible around a track in the Udacity Simulator.
 The vehicle has a path along the center of the track as input.
 
+This is part of a series of projects exploring different methods to autonomously drive a car around the given track. Others are:
+* [PID Control](https://github.com/merbar/CarND-PID-Control-Project)
+* [Deep Learning](https://github.com/merbar/CarND-Behavioral-Cloning-P3)
+
 ## Result (max speed run): [YouTube video: MPC Control](https://www.youtube.com/watch?v=5UmWq_d3WW4)
 
 ## Model
