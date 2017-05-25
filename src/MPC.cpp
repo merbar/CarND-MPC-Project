@@ -4,40 +4,32 @@
 #include "Eigen-3.3/Eigen/Core"
 
 using CppAD::AD;
-
+//=============================================================================
 // TODO: Set the timestep length and duration
-size_t N = 20;
-double dt = 0.15;
-
+size_t N = 15;
+double dt = 0.12;
+//=============================================================================
 // This value assumes the model presented in the classroom is used.
-//
-// It was obtained by measuring the radius formed by running the vehicle in the
-// simulator around in a circle with a constant steering angle and velocity on a
-// flat terrain.
-//
-// Lf was tuned until the the radius formed by the simulating the model
-// presented in the classroom matched the previous radius.
-//
-// This is the length from front to CoG that has a similar radius.
+// Length from front to CoG that has a similar radius.
 const double Lf = 2.67;
-
+//=============================================================================
 // reference values for errors and velocity
-double ref_cte = 0;
-double ref_epsi = 0;
-double ref_v = 100;
+const double ref_cte = 0;
+const double ref_epsi = 0;
+const double ref_v = 95; // race mode: 100, safe mode: 95
 
 // Solver takes all state and actuator variables in a singular vector.
 // Set up indeces for easier access later
-size_t x_start = 0;
-size_t y_start = x_start + N;
-size_t psi_start = y_start + N;
-size_t v_start = psi_start + N;
-size_t cte_start = v_start + N;
-size_t epsi_start = cte_start + N;
-size_t deltaPsi_start = epsi_start + N;
-size_t a_start = deltaPsi_start + N - 1;
+const size_t x_start = 0;
+const size_t y_start = x_start + N;
+const size_t psi_start = y_start + N;
+const size_t v_start = psi_start + N;
+const size_t cte_start = v_start + N;
+const size_t epsi_start = cte_start + N;
+const size_t deltaPsi_start = epsi_start + N;
+const size_t a_start = deltaPsi_start + N - 1;
 
-
+//=============================================================================
 class FG_eval {
  public:
   // Fitted polynomial coefficients
@@ -57,7 +49,6 @@ class FG_eval {
     fg[0] = 0;
       
     /*
-    // increment cost for each timestep's cross track and orientation error
     (positive) value ranges for penalties:
     CTE: ~0-16
     EPSI: ~0-1.5
@@ -71,20 +62,21 @@ class FG_eval {
     PSI: 0-1
     A: 0-1
     */
+    // penalize for cross track error, orientation error and not keeping ref velocity
     for (int i = 0; i < N; i++) {
-        fg[0] += 2000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2);
-        fg[0] += 5000 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
-        fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
+        fg[0] += 2000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2); // 2000
+        fg[0] += 1500 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2); // 1000
+        fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2); // 1
     }
     // penalize the use of actuators
     for (int i = 0; i < N-1; i++) {
-        fg[0] += 500 * CppAD::pow(vars[deltaPsi_start + i], 2);
-        //fg[0] += CppAD::pow(vars[a_start + i], 2);
+        fg[0] += 20000 * CppAD::pow(vars[deltaPsi_start + i], 2); // 500
+        fg[0] += CppAD::pow(vars[a_start + i], 2);
     }
     // penalize big value gaps in sequential actuations
     for (int i = 0; i < N-2; i++) {
-        fg[0] += CppAD::pow(vars[deltaPsi_start + i + 1] - vars[deltaPsi_start + i], 2);
-        fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+        fg[0] += 2 * CppAD::pow(vars[deltaPsi_start + i + 1] - vars[deltaPsi_start + i], 2); // 1
+        fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2); // 1
     }
     
     // Setup Constraints
@@ -113,10 +105,16 @@ class FG_eval {
       AD<double> cte1 = vars[cte_start + i + 1];
       AD<double> epsi1 = vars[epsi_start + i + 1];
       
-      //AD<double> f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
-      //AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0,2));
-      AD<double> f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2);
-      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0);
+      AD<double> f_x0;
+      AD<double> psides0;
+      // make it possible to switch between 2nd and 3rd degree polynomial fit
+      if (coeffs.size() == 4) {      
+        f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
+        psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0,2));
+      } else {
+        f_x0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2);
+        psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0);
+      }
       
       // The idea here is to constraint this value to be 0.
       //
@@ -139,14 +137,13 @@ class FG_eval {
   }
 };
 
-
-
+//=============================================================================
 //
 // MPC class definition implementation.
 //
 MPC::MPC() {}
 MPC::~MPC() {}
-
+//=============================================================================
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   bool ok = true;
   size_t i;
@@ -265,19 +262,15 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
-  // save predicted x and y values
-  vector<double> result(N*2);
-  result[0] = 0.0;
-  result[1] = 0.0;
-  const int smooth_fac = 1;
-  for (int i = 0; i < smooth_fac; i++) {
-    result[0] += solution.x[deltaPsi_start+i] / smooth_fac;
-    result[1] += solution.x[a_start+i] / smooth_fac;
+  // save predicted actuations
+  vector<double> result(N * 2 - 14);
+  result[0] += solution.x[deltaPsi_start];
+  result[1] += solution.x[a_start];
+  // save predicted waypoints
+  int num_points = N - 1 - 7;
+  for (int i = 0; i < num_points; i++) {
+      result[i + 2] = solution.x[x_start + i];
+      result[num_points + i + 2] = solution.x[y_start + i];
   }
-  for (int i=2; i<N+1; i++) {
-      result[i] = solution.x[x_start+i-2];
-      result[N+i] = solution.x[y_start+i-2];
-  }
-
   return result;
-}
+} 

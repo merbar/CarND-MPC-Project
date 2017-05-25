@@ -13,11 +13,13 @@
 // for convenience
 using json = nlohmann::json;
 
+//=============================================================================
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
+//=============================================================================
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -33,6 +35,7 @@ string hasData(string s) {
   return "";
 }
 
+//=============================================================================
 // Evaluate a polynomial.
 double polyeval(Eigen::VectorXd coeffs, double x) {
   double result = 0.0;
@@ -42,6 +45,7 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+//=============================================================================
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -60,12 +64,12 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
       A(j, i + 1) = A(j, i) * xvals(j);
     }
   }
-
   auto Q = A.householderQr();
   auto result = Q.solve(yvals);
   return result;
 }
 
+//=============================================================================
 int main() {
   uWS::Hub h;
 
@@ -78,7 +82,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    //cout << sdata << endl;
+    cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -92,16 +96,7 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-          
-          // attempt to account for latency since it affects everything, including correct planned path
-          double deltaPsi = j[1]["steering_angle"];
-          double a = j[1]["throttle"];
-          double latency = 0.1;
-          //px += cos(psi) * v * latency;
-          //py += sin(psi) * v * latency;
-          //psi += -deltaPsi * latency;
-          //v += a * latency;
-                    
+
           // transfer world space waypoints into vehicle space (vehicle at origin)
           // using eigen vectors since polyfit/polyeval require them
           int num_waypoints = ptsx.size();
@@ -128,26 +123,24 @@ int main() {
           
           // calculate errors
           double cte = polyeval(wpts_coeff, 0) - py;
-          //double epsi = psi - atan(wpts_coeff(1) + 2 * wpts_coeff(2) * px + 3 * wpts_coeff(3) * px * px);
-          double epsi = atan(wpts_coeff(1));
+          double epsi = atan(wpts_coeff(1)); // most of poly function is zero due to px=0
           
           Eigen::VectorXd state_vec(6);
           state_vec << px, py, psi, v, cte, epsi;
-
+                            
           // TODO: Calculate steering angle and throttle using MPC.
           // Both are in between [-1, 1].     
           vector<double> mpc_out = mpc.Solve(state_vec, wpts_coeff);
-          int mpc_out_size = mpc_out.size();
-          int N = (mpc_out_size-2) / 2;
+          int num_pts = (mpc_out.size() - 2) / 2;
                     
           double steer_value = -mpc_out[0];
           double throttle_value = mpc_out[1];
           
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
-          for (int i = 2; i < N; i++) {
-              mpc_x_vals.push_back(mpc_out[i]);
-              mpc_y_vals.push_back(mpc_out[N + i]);
+          vector<double> mpc_x_vals(num_pts);
+          vector<double> mpc_y_vals(num_pts);
+          for (int i = 0; i < num_pts; i++) {
+              mpc_x_vals[i] = mpc_out[i + 2];
+              mpc_y_vals[i] = mpc_out[num_pts + i + 2];
           }
 
           json msgJson;
@@ -172,7 +165,7 @@ int main() {
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          //std::cout << msg << std::endl;
+          std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does not actuate the commands instantly.
