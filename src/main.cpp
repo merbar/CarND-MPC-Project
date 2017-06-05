@@ -138,6 +138,7 @@ int main() {
           
           vector<double> mpc_x_vals(num_pts);
           vector<double> mpc_y_vals(num_pts);
+
           for (int i = 0; i < num_pts; i++) {
               mpc_x_vals[i] = mpc_out[i + 2];
               mpc_y_vals[i] = mpc_out[num_pts + i + 2];

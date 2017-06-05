@@ -6,8 +6,8 @@
 using CppAD::AD;
 //=============================================================================
 // TODO: Set the timestep length and duration
-size_t N = 15;
-double dt = 0.12;
+const size_t N = 15;
+const double dt = 0.12;
 //=============================================================================
 // This value assumes the model presented in the classroom is used.
 // Length from front to CoG that has a similar radius.
@@ -49,6 +49,7 @@ class FG_eval {
     fg[0] = 0;
       
     /*
+    FOR REFERENCE:
     (positive) value ranges for penalties:
     CTE: ~0-16
     EPSI: ~0-1.5
@@ -64,23 +65,23 @@ class FG_eval {
     */
     // penalize for cross track error, orientation error and not keeping ref velocity
     for (int i = 0; i < N; i++) {
-        fg[0] += 2000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2); // 2000
-        fg[0] += 1500 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2); // 1000
-        fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2); // 1
+        fg[0] += 2000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2);
+        fg[0] += 1500 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+        fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
     }
     // penalize the use of actuators
     for (int i = 0; i < N-1; i++) {
-        fg[0] += 20000 * CppAD::pow(vars[deltaPsi_start + i], 2); // 500
+        fg[0] += 20000 * CppAD::pow(vars[deltaPsi_start + i], 2);
         fg[0] += CppAD::pow(vars[a_start + i], 2);
     }
     // penalize big value gaps in sequential actuations
     for (int i = 0; i < N-2; i++) {
-        fg[0] += 2 * CppAD::pow(vars[deltaPsi_start + i + 1] - vars[deltaPsi_start + i], 2); // 1
-        fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2); // 1
+        fg[0] += 2 * CppAD::pow(vars[deltaPsi_start + i + 1] - vars[deltaPsi_start + i], 2);
+        fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
     
     // Setup Constraints
-    // We add 1 to each of the starting indices due to cost being located at index 0 of `fg`.
+    // Add 1 to each of the starting indices due to cost being located at index 0 of `fg`.
     fg[x_start + 1] = vars[x_start];
     fg[y_start + 1] = vars[y_start];
     fg[psi_start + 1] = vars[psi_start];
@@ -149,32 +150,29 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   size_t i;
   typedef CPPAD_TESTVECTOR(double) Dvector;
   
-  double x = state[0];
-  double y = state[1];
-  double psi = state[2];
-  double v = state[3];
-  double cte = state[4];
-  double epsi = state[5];
+  const double x = state[0];
+  const double y = state[1];
+  const double psi = state[2];
+  const double v = state[3];
+  const double cte = state[4];
+  const double epsi = state[5];
   
-  // TODO: Set the number of model variables (includes both states and inputs).
-  // For example: If the state is a 4 element vector, the actuators is a 2
-  // element vector and there are 10 timesteps. The number of variables is: 4 * 10 + 2 * 9
-  int dim_state_vec = 6; // x, y, psi, v, cte, epsi
-  int dim_actuator_vec = 2; // steering, acceleration
+  // number of model variables (includes both states and inputs).
+  const int dim_state_vec = 6; // x, y, psi, v, cte, epsi
+  const int dim_actuator_vec = 2; // steering, acceleration
   
   // number of independent variables
-  //size_t n_vars = N * dim_state_vec + (N - 1) * dim_actuator_vec;
-  size_t n_vars = N * dim_state_vec + (N-1) * dim_actuator_vec;
+  const size_t n_vars = N * dim_state_vec + (N-1) * dim_actuator_vec;
   
-  // TODO: Set the number of constraints
-  size_t n_constraints = N * dim_state_vec;
+  // number of constraints
+  const size_t n_constraints = N * dim_state_vec;
 
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
   Dvector vars(n_vars);
-  for (int i = 0; i < n_vars; i++) {
+  for (int i = 0; i < n_vars; i++)
     vars[i] = 0.0;
-  }
+  
   // set initial variable values
   vars[x_start] = x;
   vars[y_start] = y;
